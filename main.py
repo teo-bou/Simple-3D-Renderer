@@ -1,26 +1,40 @@
-import cv2
+import taichi as ti
 import numpy as np
+ti.init(arch=ti.metal) 
 
-WIDTH = 640
-HEIGHT = 480
+res = 512
+pixels = ti.Vector.field(3, dtype=ti.f32, shape=(res, res))
 
+@ti.func
+def dot(a, b):
+    return a.x * b.x + a.y * b.y
 
-def square(image, x0, y0, x1, y1):
-    for x in range(x0, x1):
-        for y in range(y0, y1):
-            image[y%HEIGHT, x%WIDTH] = (1, 0, 0)
-    return image
-
-for i in range(1000):
-    image = np.zeros((HEIGHT, WIDTH, 3))
-   
+@ti.func
+def perpendicular(a):
+    return ti.Vector([a.y, -a.x])
 
 
-    image = square(image, i, i, 400+i, 400+i)
+@ti.kernel
+def render_shader(a: ti.types.vector(2, ti.f32), b: ti.types.vector(2, ti.f32)):
+    for i, j in pixels:
+        x = (i / res) * 2 - 1
+        y = (j / res) * 2 - 1
 
-    cv2.imshow('Image', image)
-    cv2.waitKey(10)
+        p = ti.Vector([x, y])
+        mid = (a - b)
+        mid = perpendicular(mid)
+        if dot(p, mid) > 0:
+            pixels[i,j] = (1,1,1)
+        else:
+            pixels[i,j] = (0,0,0)
+        
 
-
-
-
+gui = ti.GUI("Simple renderer", res=(res, res))
+t = 0.0
+while gui.running:
+    a = ti.Vector([0,0])
+    b = ti.Vector([np.cos(t),np.sin(t)])
+    render_shader(a,b)
+    gui.set_image(pixels)
+    t+=1/1000
+    gui.show()
